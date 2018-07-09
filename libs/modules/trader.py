@@ -21,7 +21,64 @@ class Trader(object):
         return self
 
 
-    def get_candlesticks(self, timeframe = "1h", size = "5m", dateOffset = "now()" ):
+    def get_candlesticks(self, timeframe = "1h", size = "1m", dateOffset = "now()" ):
+        self.timeframe = timeframe
+        self.cssize = size
+
+        points = self.influxdb.raw_query("""select base_volume, volume, open, high, low, close FROM "crypto_ohlc" WHERE market='{0}' AND time < {1} AND time > {1} - {2} AND period='{3}'""".format(self.market,dateOffset,timeframe,size)).get_points()
+
+        # points = self.influxdb.raw_query("""select LAST(basevolume) as basevolume, LAST(volume) as volume, FIRST(last) as open, LAST(last) as closed, MAX(last) as high, MIN(last) as low FROM "market_summary" WHERE marketname='{0}' and time < {1} and time > {1} - {2}  group by time({3})""".format(self.market,dateOffset,timeframe,size)).get_points()
+
+        cs = self.clear_candlesticks()
+
+        psize = 0
+        for point in points:
+            psize += 1
+            cs["low"].extend([point["low"]])
+            cs["high"].extend([point["high"]])
+            cs["closed"].extend([point["close"]])
+            cs["open"].extend([point["open"]])
+            cs["volume"].extend([point["volume"]])
+            cs["basevolume"].extend([point["base_volume"]])
+            cs["time"].extend([point["time"]])
+
+        if psize == 0:
+            raise Exception("no market data for {} at {}".format(self.market,dateOffset))
+
+        '''
+        def fix_gaps(lst):
+            for idx,val in enumerate(lst):
+                if val == None:
+                    if idx > 0:
+                        lst[idx] = lst[idx-1]
+                    if idx == 0:
+                        lst[idx] = 0
+
+        fix_gaps(cs["low"])
+        fix_gaps(cs["high"])
+        fix_gaps(cs["closed"])
+        fix_gaps(cs["open"])
+        fix_gaps(cs["volume"])
+        fix_gaps(cs["basevolume"])
+        fix_gaps(cs["time"])
+        '''
+
+
+        self.cs = {
+                "low": numpy.array(cs["low"]),
+                "high": numpy.array(cs["high"]),
+                "closed": numpy.array(cs["closed"]),
+                "volume": numpy.array(cs["volume"]),
+                "basevolume": numpy.array(cs["basevolume"]),
+                "open": numpy.array(cs["open"]),
+                "time": cs["time"]
+                }
+
+        Exchange.getInstance().set_market_value(self.market, self.cs["closed"][-1] )
+        return self.cs
+
+
+    def x_get_candlesticks(self, timeframe = "1h", size = "5m", dateOffset = "now()" ):
         self.timeframe = timeframe
         self.cssize = size
         points = self.influxdb.raw_query("""select LAST(basevolume) as basevolume, LAST(volume) as volume, FIRST(last) as open, LAST(last) as closed, MAX(last) as high, MIN(last) as low FROM "market_summary" WHERE marketname='{0}' and time < {1} and time > {1} - {2}  group by time({3})""".format(self.market,dateOffset,timeframe,size)).get_points()
