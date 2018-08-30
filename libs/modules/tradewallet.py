@@ -1,5 +1,6 @@
-import random
+import random,uuid
 from datetime import datetime
+from mongowrapper import MongoWrapper
 
 
 class TradeWallet(object):
@@ -11,6 +12,34 @@ class TradeWallet(object):
         self.completed = []
         # self.sell_queue = []
         self.mode = config.get("mode","simulation")
+        self.name = config.get("name","sim1")
+
+        #mongodb
+        self.mongo = MongoWrapper.getInstance().getClient()
+
+
+    def setup(self):
+        res = self.mongo.crypto.drop_collection("wallet")
+        res = self.mongo.crypto.wallet.create_index([("name",pymongo.ASCENDING)],unique=True)
+
+
+    def update(self):
+        doc = { 'name': self.name,
+                'mode': self.mode,
+                'buys': self.buys,
+                'sells': self.sells,
+                'completed': self.completed }
+        return self.mongo.crypto.wallet.replace_one({'name':self.name},doc,upsert=True)
+
+
+    def load(self):
+        res = self.mongo.crypto.wallet.find_one({'name':self.name})
+        if res is not None and 'name' in res:
+            self.mode = res['mode']
+            self.buys = res['buys']
+            self.sells = res['sells']
+            self.completed = res['completed']
+        return res
 
         # self.startBuyHandler()
         # self.startSellHandler()
@@ -31,6 +60,7 @@ class TradeWallet(object):
             'signals': signals
             })
 
+
     def short(self, candle, goalPercent=0.05, goalPrice=None, priceOverride = None, signals = None, timeIndex = None):
         '''create new buy order'''
 
@@ -47,7 +77,8 @@ class TradeWallet(object):
         if goalPrice is None:
             goalPrice = self.getPriceFromPercent(price,goalPercent)
 
-        sellid= random.randint(1000,99999)
+        # sellid= random.randint(1000,99999)
+        sellid = str(uuid.uuid4())
         self.sells.append( {
             'id': sellid,
             'status': 'pending',
@@ -58,6 +89,8 @@ class TradeWallet(object):
             'price': price,
             'signals': signals
             } )
+
+        self.update()
 
 
     def getSignals(self):
@@ -84,7 +117,8 @@ class TradeWallet(object):
         if goalPrice is None:
             goalPrice = self.getPriceFromPercent(price,goalPercent)
 
-        buyid= random.randint(1000,99999)
+        # buyid= random.randint(1000,99999)
+        buyid = str(uuid.uuid4())
         self.buys.append( {
             'id': buyid,
             'sell_id': None,
@@ -99,11 +133,14 @@ class TradeWallet(object):
             'signals': signals
             } )
 
+        self.update()
+
 
     def sell(self, buydata, saledata, signals = None, timeIndex = None ):
         '''place buy order in sell queue'''
 
-        sellid = random.randint(1000,99999)
+        # sellid = random.randint(1000,99999)
+        sellid = str(uuid.uuid4())
         buydata['sell_id'] = sellid
 
         self.sells.append({
@@ -117,6 +154,8 @@ class TradeWallet(object):
                 'buy_id': buydata['id'],
                 'signals': signals
                 })
+
+        self.update()
 
 
     # TODO:

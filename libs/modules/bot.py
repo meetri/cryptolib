@@ -5,6 +5,8 @@ from botdata import BotDataProvider
 from tcpsock import TcpSock
 from bittrex import Bittrex
 from scraper import Scraper
+from mongowrapper import MongoWrapper
+
 
 class Bot(object):
 
