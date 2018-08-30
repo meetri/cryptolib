@@ -5,6 +5,7 @@ from sma import SMA
 from atr import ATR
 from bbands import BBands
 from doubleband import DoubleBand
+from volumebases import VolumeBases
 
 class TechnicalAnalyzer(object):
 
@@ -13,12 +14,20 @@ class TechnicalAnalyzer(object):
         self.analyzer = analyzer
         self.csdata = analyzer.cs
 
+    def getvolbases(self, vsma, md=0.004, vmx=10):
+        tag = "volbases:{}:{}".format(md,vmx)
+        vb = self.analyzer.getIndicator(tag)
+        if not vb:
+            vb = VolumeBases(self.csdata, vsma, config={'vmx':vmx,'md':md})
+            self.analyzer.saveIndicator(tag,vb)
+        return vb
 
-    def getema(self,period = 14,label="ema"):
-        tag = "ema:{}".format(period)
+
+    def getema(self,period = 14,label="ema",metric="closed"):
+        tag = "ema:{}:{}".format(period,metric)
         ema = self.analyzer.getIndicator(tag)
         if not ema:
-            ema = EMA(self.csdata,{"period":period,"label":label})
+            ema = EMA(self.csdata,{"period":period,"label":label,"metric":metric})
             self.analyzer.saveIndicator(tag,ema)
         return ema
 
@@ -27,17 +36,17 @@ class TechnicalAnalyzer(object):
         return self.getema(period,label).data[-1]
 
 
-    def getsma(self,period = 14,label="sma"):
-        tag = "sma:{}".format(period)
+    def getsma(self,period = 14,label="sma",metric="closed"):
+        tag = "sma:{}:{}".format(period,metric)
         sma = self.analyzer.getIndicator(tag)
         if not sma:
-            sma = SMA(self.csdata,{"period":period,"label":label})
+            sma = SMA(self.csdata,{"period":period,"label":label,"metric":metric})
             self.analyzer.saveIndicator(tag,sma)
         return sma
 
 
-    def sma(self, period = 14,label="sma" ):
-        return self.getsma(period,label).data[-1]
+    def sma(self, period = 14,label="sma",metric="closed" ):
+        return self.getsma(period,label,metric).data[-1]
 
 
     def atr(self, period = 14,label="atr" ):
@@ -54,8 +63,7 @@ class TechnicalAnalyzer(object):
         return ind
 
 
-
-    def getrsi(self,period = 14,overbought=60,oversold=40,label="rsi"):
+    def getrsi(self,period = 14,overbought=70,oversold=30,label="rsi"):
         tag = "rsi:{}".format(period)
         ind = self.analyzer.getIndicator(tag)
         if not ind:

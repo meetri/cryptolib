@@ -9,6 +9,7 @@ class EMA(BaseIndicator):
     def __init__(self,csdata, config = {}):
 
         config["period"] = config.get("period",30)
+        config["metric"] = config.get("metric","closed")
         config["label"] = config.get("label","ema")
         config["label"] = "{}{}".format(config["label"],config["period"])
 
@@ -27,7 +28,7 @@ class EMA(BaseIndicator):
 
     def get_charts(self):
         data = []
-        for i in range(0,len(self.csdata["closed"])):
+        for i in range(0,len(self.csdata[ self.config["metric"] ])):
             if isinstance(self.data[i],numbers.Number) and self.data[i] > 0:
                 ts = time.mktime(datetime.datetime.strptime(self.csdata["time"][i], "%Y-%m-%dT%H:%M:%SZ").timetuple())
                 data.append({
@@ -47,8 +48,8 @@ class EMA(BaseIndicator):
     def get_ema(self):
         if self.csdata is not None:
             try:
-                sclosed = self.scaleup( self.csdata["closed"])
-                data = talib.EMA( numpy.array(sclosed), self.config["period"])
+                smetric = self.scaleup( self.csdata[self.config["metric"]])
+                data = talib.EMA( numpy.array(smetric), self.config["period"])
                 self.data = self.scaledown(data)
                 # scaledown
             except Exception as ex:

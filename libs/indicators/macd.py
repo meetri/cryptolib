@@ -40,6 +40,19 @@ class MACD(BaseIndicator):
         return "{}:{}:{}".format(self.fastperiod,self.slowperiod,self.signalperiod)
 
 
+    def details(self, idx ):
+        return {
+            "name": "macd",
+            "period": "{}:{}:{}".format(self.fastperiod,self.slowperiod,self.signalperiod),
+            # "fast_period": self.fastperiod,
+            # "slow_period": self.slowperiod,
+            # "signal_period": self.signalperiod,
+            "macd": round(self.data[0][idx],12),
+            "signal": round(self.data[1][idx],12),
+            "history": round(self.data[2][idx],12)
+        }
+
+
     def get_macd(self):
         if self.csdata is not None:
             try:

@@ -1,2 +1,5 @@
+libs.src
+libs/modules/legacy/
+lib.x
 __pycache__
 *.pyc

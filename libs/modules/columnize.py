@@ -26,11 +26,9 @@ class Columnize(object):
     @staticmethod
     def draw_table( stdscr, line, headers, rows , margin = 4, xofs = 0, showheader = True ):
         margin = 4
-        colwidth = []
-
+        cwidth = {}
         headerlist = headers.split(",")
 
-        idx = 0
         # get column width
         for row in rows:
             for header in headerlist:
@@ -41,38 +39,28 @@ class Columnize(object):
                     if w2 > w:
                         w = w2
 
-                if len(colwidth) > idx:
-                    if colwidth[idx] < w:
-                        colwidth[idx] = w
-                else:
-                    colwidth += [ w ]
-                idx += 1
-
+                cwidth[header] = w
 
         for row in rows:
             if showheader:
                 cw = xofs
                 showheader = False
-                idx = 0
                 for col in headerlist:
                     try:
                         stdscr.addstr( line, cw, str(col), curses.A_BOLD  )
                     except:
                         break
-                    cw += colwidth[idx]
-                    idx += 1
+                    cw += cwidth[col]
                 line += 1
 
             cw = 0
-            idx = 0
             for col in headerlist:
                 item = str(row[col])
                 try:
                     stdscr.addstr( line ,cw, item )
                 except:
                     break
-                cw += colwidth[idx]
-                idx += 1
+                cw += cwidth[col]
             line += 1
 
 

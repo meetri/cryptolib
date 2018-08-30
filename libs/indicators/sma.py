@@ -10,6 +10,7 @@ class SMA(BaseIndicator):
 
         config["label"] = config.get("label","sma")
         config["period"] = config.get("period",30)
+        config["metric"] = config.get("metric","closed")
         config["label"] = "{}{}".format(config["label"],config["period"])
 
         BaseIndicator.__init__(self,csdata,config)
@@ -23,9 +24,17 @@ class SMA(BaseIndicator):
         return "{}".format(self.config["period"])
 
 
+    def details(self, idx ):
+        return {
+            "name": "sma",
+            "period": self.config["period"],
+            "metric": self.config["metric"],
+            "sma": round(self.data[idx],8),
+        }
+
     def get_charts(self):
         data = []
-        for i in range(0,len(self.csdata["closed"])):
+        for i in range(0,len(self.csdata[ self.config['metric'] ])):
             if isinstance(self.data[i],numbers.Number) and self.data[i] > 0:
                 ts = time.mktime(datetime.datetime.strptime(self.csdata["time"][i], "%Y-%m-%dT%H:%M:%SZ").timetuple())
                 data.append({
@@ -45,7 +54,7 @@ class SMA(BaseIndicator):
     def get_sma(self):
         if self.csdata is not None:
             try:
-                sclosed = self.scaleup( self.csdata["closed"])
+                sclosed = self.scaleup( self.csdata[ self.config["metric"] ])
                 data = talib.SMA( numpy.array(sclosed), self.config["period"])
                 self.data = self.scaledown(data)
                 # scaledown
@@ -64,7 +73,11 @@ class SMA(BaseIndicator):
         sma1 = self.data[-2]
 
         slope = None
-        for k in range(-1,-10,-1):
+        candles = 10
+        if len(self.data) < candles:
+            candles = len(self.data)-1
+
+        for k in range(-1,-1*candles,-1):
             if slope == None:
                 slope = self.data[k-1] / self.data[k]
             else:
@@ -75,8 +88,10 @@ class SMA(BaseIndicator):
         closing_time = self.csdata["time"][-1]
 
         action = None
-        if last_price < sma:
-            action = "oversold"
+
+        if sma != None and last_price != None and self.config["metric"] == "closed":
+            if last_price < sma:
+                action = "oversold"
 
 
         res = {

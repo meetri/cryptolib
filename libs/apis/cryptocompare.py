@@ -4,7 +4,7 @@ import json
 
 class CryptoCompare(object):
 
-    def __init__(self,appname="cryptodata"):
+    def __init__(self,appname="mycryptodata__thankyou"):
         self.name = "cryptocompare"
         self.timeout = 4
         self.api_root = "https://min-api.cryptocompare.com/"
@@ -17,6 +17,7 @@ class CryptoCompare(object):
         self.headers = {
             "Content-Type": "application/json",
         }
+
 
     def process(self, api_path, payload = {}, api_root = None):
 
@@ -34,6 +35,42 @@ class CryptoCompare(object):
         self.data = self.response.json()
 
         return self
+
+    def top_markets(self,limit=10,basecurrency='BTC'):
+        return self.process("data/top/volumes?tsym={}&limit={}".format(basecurrency,limit))
+
+
+    def get_market_average(self,exchanges,market):
+        marr = market.split("-")
+        base = marr[0]
+        token = marr[1]
+        req = "data/generateAvg?fsym={}&tsym={}&e={}".format(token,base,exchanges)
+        return self.process(req)
+
+
+    def rate_limit(self,limit="minute"):
+        return self.process("stats/rate/{}/limit".format(limit))
+
+
+    def get_news(self,feeds="",categories="",sortOrder="latest"):
+        req = "data/v2/news/?feed={},categories={},sortOrder={}".format(feeds,categories,sortOrder)
+        return self.process(req)
+
+
+    def get_candles(self,exchange,market,period):
+        marr = market.split("-")
+        base = marr[0]
+        token = marr[1]
+
+        if period == "1m":
+            req = "data/histominute?fsym={}&tsym={}&aggregate=1&e={}".format(token,base,exchange)
+            return self.process(req)
+        elif period == "1h":
+            req = "data/histohour?fsym={}&tsym={}&aggregate=1&e={}".format(token,base,exchange)
+            return self.process(req)
+        elif period == "1d":
+            req = "data/histoday?fsym={}&tsym={}&aggregate=1&e={}".format(token,base,exchange)
+            return self.process(req)
 
 
     def data_coinlist(self):

@@ -21,6 +21,16 @@ class BBands(BaseIndicator):
         return "{}:{}:{}".format(self.timeperiod,self.nbdevup,self.nbdevdn)
 
 
+    def details(self, idx ):
+        return {
+            "name": "bband",
+            "period": self.timeperiod,
+            "top": "{:.8f}".format(self.data[0][idx]),
+            "mid": "{:.8f}".format(self.data[1][idx]),
+            "low": "{:.8f}".format(self.data[2][idx]),
+        }
+
+
     def get_charts(self):
         allcharts = []
         label = ["top","middle","lower"]

@@ -22,6 +22,14 @@ class BBands(BaseIndicator):
 
         self.get_analysis()
 
+    def details(self, idx ):
+        return {
+            "name": "bband",
+            "period": self.timeperiod,
+            "top": round(self.data[0][idx],8),
+            "mid": round(self.data[1][idx],8),
+            "low": round(self.data[2][idx],8),
+        }
 
     def width(self,index=1):
         return (self.top(index) - self.low(index)) / self.middle(index)

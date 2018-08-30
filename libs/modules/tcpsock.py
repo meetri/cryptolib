@@ -11,7 +11,6 @@ class TcpSock(object):
         self.socketThread = None
         self.responder = responder
 
-
     def _connect(self):
         while True:
             conn, addr = self.sock.accept()
@@ -22,10 +21,11 @@ class TcpSock(object):
                 if self.responder == None:
                     conn.send(data)
                 else:
-                    msg = "{}\n".format(self.responder.dataProvider().getInfo(data))
+                    msg = "{}\n".format(self.responder.getInfo(data.strip()))
                     conn.send( msg.encode() )
 
             conn.close()
+
 
     def get(self,msg="nothing"):
 
@@ -44,6 +44,11 @@ class TcpSock(object):
         sock.close()
 
         return msg
+
+
+    def close(self):
+        self.sock.close()
+        self.socketThread.join()
 
 
     def start(self):

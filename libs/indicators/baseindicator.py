@@ -43,7 +43,10 @@ class BaseIndicator(object):
         sdata = []
         if data is not None:
             for v in data:
-                if v is not None and isinstance(v,numbers.Number):
+                if v is None:
+                    v = 0
+
+                if isinstance(v,numbers.Number):
                     sdata.append( v * self.scalefactor )
                 else:
                     sdata.append ( v )
@@ -118,4 +121,8 @@ class BaseIndicator(object):
             newres = dict(self.analysis["analysis"])
             return newres
 
+    def details(self, idx ):
+        return {
+            "name": self.get_name(),
+        }
 

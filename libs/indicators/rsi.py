@@ -22,6 +22,14 @@ class RSI(BaseIndicator):
         self.get_analysis()
 
 
+    def details(self, idx ):
+        return {
+            "name": "rsi",
+            "period": self.config["period"],
+            "rsi": round(self.data[idx],2)
+        }
+
+
     def last(self,index=1):
         index = index * -1
         return self.data[index]

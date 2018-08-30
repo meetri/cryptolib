@@ -54,7 +54,7 @@ class InfluxDbWrapper(object):
                 del self.data[group][:len(influx_data)]
 
             self.last_save_time = time.time()
-            print("sending {} bulk elements to influxdb".format(len(influx_data)))
+            # print("sending {} bulk elements to influxdb".format(len(influx_data)))
             try:
                 inf_res = self.getInfluxDb().write_points( influx_data )
                 if not inf_res:
