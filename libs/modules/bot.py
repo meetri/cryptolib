@@ -6,6 +6,7 @@ from tcpsock import TcpSock
 from bittrex import Bittrex
 from scraper import Scraper
 from mongowrapper import MongoWrapper
+from threading import Thread
 
 
 class Bot(object):
@@ -14,12 +15,11 @@ class Bot(object):
 
         self.log = logging.getLogger('crypto')
 
-        self.cycles = 0
         self.config = config
         self.name = name
-        self.budget = config.get("budget",0)
-        self.initial_budget = self.budget
-        self.tradelimit = config.get("tradelimit",0)
+        # self.budget = config.get("budget",0)
+        # self.initial_budget = self.budget
+        # self.tradelimit = config.get("tradelimit",0)
 
         self.market  = config.get("market",None)
         self.candlesize = config.get("candlesize","5m")
@@ -40,6 +40,7 @@ class Bot(object):
         self.market_summary = None
         self.last = None
         self.scrapeDate = None
+        self.startDate = None
 
         #dataprovider for candlestick data
         self.trader = Trader(market=self.market)
@@ -50,9 +51,43 @@ class Bot(object):
         #tcp socket
         self.tcpsock = None
 
+        #threadHandler
+        self.thread = None
+        self.botSleep = 15
+        self.ticks = 0
+        self.eticks = 0
+        self.rticks = 0
+
+
+    def processRunner(self):
+        while not self.stopped:
+            try:
+                self.process()
+                self.ticks += 1
+            except Exception as ex:
+                print("Error: {}".format(ex))
+                self.eticks += 1
+
+            # print(".",end=" ")
+            time.sleep(self.botSleep)
+
+
+    def start(self):
+        self.startDate = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')
+        self.thread = Thread(target=self.processRunner)
+        self.thread.start()
+
+
+    def stop(self):
+        self.thread.join()
+
 
     def isStopped(self):
         return self.stopped
+
+
+    def process(self, options = {}):
+        return None
 
 
     def refresh(self, scrape=False):
@@ -61,6 +96,7 @@ class Bot(object):
             try:
                 csdata = Scraper({'market':self.market}).cc_scrapeCandle("1m")
                 self.scrapeDate = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')
+                self.rticks += 1
             except Exception as ex:
                 print(ex)
 
