@@ -19,12 +19,19 @@ class TradeWallet(object):
         self.mongo = MongoWrapper.getInstance().getClient()
 
 
-    def getResults(self):
+    def getResults(self, lastprice ):
+
+        totalShorts = 0
+        for trade in self.sells:
+            if trade["type"] in ["short"]:
+                totalShorts+=1
 
         openTrades = 0
+        totalprofit = 0
         for trade in self.buys:
-            if trade["status"] != "sold":
+            if trade["status"] not in ["sold","forsale"]:
                 openTrades+=1
+                totalprofit += (lastprice - trade["price"])*trade["qty"]
 
         total = 0
         totalSells = 0
@@ -41,8 +48,11 @@ class TradeWallet(object):
                 "totalTrades": totalTrades,
                 "totalBuys": len(self.buys),
                 "totalSells": totalSells,
+                "totalShorts": totalShorts,
                 "openTrades": openTrades,
-                "profit": "{:.8f}".format(total)
+                "sellprofit": "{:.8f}".format(total),
+                "openprofit": "{:.8f}".format(totalprofit),
+                "totalprofit": "{:.8f}".format(totalprofit+total)
                 }
 
 
@@ -166,7 +176,7 @@ class TradeWallet(object):
         # sellid = random.randint(1000,99999)
         sellid = str(uuid.uuid4())
         buydata['sell_id'] = sellid
-        buydata["status"] = "forsale"
+        buydata["status"] = "sold"
 
         self.sells.append({
                 'id': sellid,

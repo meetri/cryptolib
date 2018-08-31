@@ -61,7 +61,8 @@ class RSI(BaseIndicator):
     def calc_value(self):
         if self.csdata is not None:
             try:
-                self.data = talib.RSI(self.csdata["closed"], self.period )
+                sclosed = self.scaleup(self.csdata["closed"])
+                self.data = talib.RSI( numpy.array(sclosed), self.period )
             except Exception as ex:
                 self.data = None
 
