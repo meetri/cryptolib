@@ -13,9 +13,38 @@ class TradeWallet(object):
         # self.sell_queue = []
         self.mode = config.get("mode","simulation")
         self.name = config.get("name","sim1")
+        self.sync = config.get("sync",True)
 
         #mongodb
         self.mongo = MongoWrapper.getInstance().getClient()
+
+
+    def getResults(self):
+
+        openTrades = 0
+        for trade in self.buys:
+            if trade["status"] != "sold":
+                openTrades+=1
+
+        total = 0
+        totalSells = 0
+        for trade in self.sells:
+            if trade["type"] == "sell":
+                totalSells += 1
+                profit = (trade["price"] - trade["buy_price"]) * trade["qty"]
+                # print("{:.8f}-{:.8f}={:.8f}".format(trade['price'],trade['buy_price'],profit))
+                total += profit
+
+        totalTrades = totalSells  + len(self.buys)
+
+        return {
+                "totalTrades": totalTrades,
+                "totalBuys": len(self.buys),
+                "totalSells": totalSells,
+                "openTrades": openTrades,
+                "profit": "{:.8f}".format(total)
+                }
+
 
 
     def setup(self):
@@ -24,22 +53,20 @@ class TradeWallet(object):
 
 
     def update(self):
-        doc = { 'name': self.name,
-                'mode': self.mode,
-                'buys': self.buys,
-                'sells': self.sells,
-                'completed': self.completed }
-        return self.mongo.crypto.wallet.replace_one({'name':self.name},doc,upsert=True)
+        if self.sync:
+            doc = { 'name': self.name, 'mode': self.mode, 'buys': self.buys, 'sells': self.sells, 'completed': self.completed }
+            return self.mongo.crypto.wallet.replace_one({'name':self.name},doc,upsert=True)
 
 
     def load(self):
-        res = self.mongo.crypto.wallet.find_one({'name':self.name})
-        if res is not None and 'name' in res:
-            self.mode = res['mode']
-            self.buys = res['buys']
-            self.sells = res['sells']
-            self.completed = res['completed']
-        return res
+        if self.sync:
+            res = self.mongo.crypto.wallet.find_one({'name':self.name})
+            if res is not None and 'name' in res:
+                self.mode = res['mode']
+                self.buys = res['buys']
+                self.sells = res['sells']
+                self.completed = res['completed']
+            return res
 
         # self.startBuyHandler()
         # self.startSellHandler()
@@ -117,6 +144,7 @@ class TradeWallet(object):
         if goalPrice is None:
             goalPrice = self.getPriceFromPercent(price,goalPercent)
 
+        qty = 0.01 / price
         # buyid= random.randint(1000,99999)
         buyid = str(uuid.uuid4())
         self.buys.append( {
@@ -128,6 +156,7 @@ class TradeWallet(object):
             'candle': candle['date'],
             'index': timeIndex,
             'price': price,
+            'qty': qty,
             'goalPercent': goalPercent,
             'goalPrice': goalPrice,
             'signals': signals
@@ -142,6 +171,7 @@ class TradeWallet(object):
         # sellid = random.randint(1000,99999)
         sellid = str(uuid.uuid4())
         buydata['sell_id'] = sellid
+        buydata["status"] = "sold"
 
         self.sells.append({
                 'id': sellid,
@@ -150,6 +180,7 @@ class TradeWallet(object):
                 'date': saledata['date'],
                 'index': timeIndex,
                 'price': saledata['price'],
+                'qty': buydata['qty'],
                 'buy_price': buydata['price'],
                 'buy_id': buydata['id'],
                 'signals': signals

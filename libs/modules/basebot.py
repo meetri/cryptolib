@@ -83,7 +83,7 @@ class BaseBot(object):
             rid = random.randint(100,70000)
             self.name = "{}-{}".format(name,rid)
 
-    def createSocket( self, ip="127.0.0.1", port ):
+    def createSocket( self, ip="127.0.0.1", port=9000 ):
         self.tcpsock = TcpSock(ip,port, self)
         self.tcpsock.start()
 
