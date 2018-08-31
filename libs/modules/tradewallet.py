@@ -128,18 +128,13 @@ class TradeWallet(object):
         return sigevent
 
 
-    def buy(self, candle, goalPercent=0.05, goalPrice=None, priceOverride = None, signals = None, timeIndex = None):
+    def buy(self, goalPercent=0.05, goalPrice=None, price= None, signals = None, timeIndex = None, candle=None):
         '''create new buy order'''
 
         if self.mode == "simulation":
             utcnow = candle['date']
         else:
             utcnow = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')
-
-        if priceOverride is not None:
-            price = priceOverride
-        else:
-            price = candle['close']
 
         if goalPrice is None:
             goalPrice = self.getPriceFromPercent(price,goalPercent)
@@ -171,7 +166,7 @@ class TradeWallet(object):
         # sellid = random.randint(1000,99999)
         sellid = str(uuid.uuid4())
         buydata['sell_id'] = sellid
-        buydata["status"] = "sold"
+        buydata["status"] = "forsale"
 
         self.sells.append({
                 'id': sellid,

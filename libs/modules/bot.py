@@ -67,6 +67,7 @@ class Bot(object):
             except Exception as ex:
                 print("Error: {}".format(ex))
                 self.eticks += 1
+                raise ex
 
             # print(".",end=" ")
             time.sleep(self.botSleep)
