@@ -1,6 +1,7 @@
-import random,uuid
+import random,uuid,os
 from datetime import datetime
 from mongowrapper import MongoWrapper
+from twiliosms import TwilioSms
 
 
 class TradeWallet(object):
@@ -13,6 +14,7 @@ class TradeWallet(object):
         # self.sell_queue = []
         self.mode = config.get("mode","simulation")
         self.name = config.get("name","sim1")
+        self.market = config.get("market","")
         self.sync = config.get("sync",True)
         self.scale = config.get("scale",8)
         self.maxtrades = config.get("trades",5)
@@ -27,8 +29,19 @@ class TradeWallet(object):
 
         self.sellGoalPercent= config.get("sellGoalPercent",0.05)
 
+        self.sms = TwilioSms()
+        self.notifyList = os.getenv("TRADEBOT_NOTIFY","")
+
         #mongodb
         self.mongo = MongoWrapper.getInstance().getClient()
+
+
+    def notify(self,msg):
+        if self.sync:
+            if len(msg) > 0:
+                nl = self.notifyList.split(",")
+                for number in nl:
+                    self.sms.send(msg,number)
 
 
     def getResults(self, lastprice = None ):
@@ -196,6 +209,8 @@ class TradeWallet(object):
         else:
             self.rejected.append ( buyObj )
 
+        self.notify("Market {} buy {} units  @ {}".format(self.market,buyObj["qty"],buyObj["price"]))
+
         self.update()
 
 
@@ -219,6 +234,8 @@ class TradeWallet(object):
                 'buy_id': buydata['id'],
                 'signals': signals
                 })
+
+        self.notify("Market {} sold {} units  @ {}".format(self.market,buydata["qty"],buydata["price"]))
 
         self.update()
 
