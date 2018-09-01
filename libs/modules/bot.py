@@ -28,12 +28,12 @@ class Bot(object):
         self.stopped = False
 
         if not self.market:
-            raise Exception("missing required fields market: {}, budget: {}, tradelimit: {}".format(self.market,self.budget,self.tradelimit))
+            raise Exception("missing required fields market: {}".format(self.market))
 
         if "usdt" in self.market.lower():
-            self.scale  = config.get("scale","2")
+            self.scale  = config.get("scale",2)
         else:
-            self.scale  = config.get("scale","8")
+            self.scale  = config.get("scale",8)
 
         #candlestick data
         self.csdata = None

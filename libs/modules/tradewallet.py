@@ -7,19 +7,31 @@ class TradeWallet(object):
 
     def __init__( self, config = {}):
         self.buys = []
+        self.rejected = []
         self.sells = []
         self.reports = []
-        self.completed = []
         # self.sell_queue = []
         self.mode = config.get("mode","simulation")
         self.name = config.get("name","sim1")
         self.sync = config.get("sync",True)
+        self.scale = config.get("scale",8)
+        self.maxtrades = config.get("trades",5)
+
+        if self.scale == 2:
+            self.budget = config.get("budget",500)
+        else:
+            self.budget = config.get("budget",0.5)
+            #self.qtyVal = config.get("qtyVal",0.02) # in bitcoin
+
+        self.qtyVal = self.budget / self.maxtrades
+
+        self.sellGoalPercent= config.get("sellGoalPercent",0.05)
 
         #mongodb
         self.mongo = MongoWrapper.getInstance().getClient()
 
 
-    def getResults(self, lastprice ):
+    def getResults(self, lastprice = None ):
 
         totalShorts = 0
         for trade in self.sells:
@@ -31,7 +43,8 @@ class TradeWallet(object):
         for trade in self.buys:
             if trade["status"] not in ["sold","forsale"]:
                 openTrades+=1
-                totalprofit += (lastprice - trade["price"])*trade["qty"]
+                if lastprice is not None:
+                    totalprofit += (lastprice - trade["price"])*trade["qty"]
 
         total = 0
         totalSells = 0
@@ -64,7 +77,7 @@ class TradeWallet(object):
 
     def update(self):
         if self.sync:
-            doc = { 'name': self.name, 'mode': self.mode, 'buys': self.buys, 'sells': self.sells, 'completed': self.completed }
+            doc = { 'name': self.name, 'mode': self.mode, 'buys': self.buys, 'sells': self.sells, 'rejected': self.rejected }
             return self.mongo.crypto.wallet.replace_one({'name':self.name},doc,upsert=True)
 
 
@@ -75,11 +88,9 @@ class TradeWallet(object):
                 self.mode = res['mode']
                 self.buys = res['buys']
                 self.sells = res['sells']
-                self.completed = res['completed']
+                if "rejected" in res:
+                    self.rejected = res['rejected']
             return res
-
-        # self.startBuyHandler()
-        # self.startSellHandler()
 
 
     def report(self, candle, signals = None, timeIndex = None ):
@@ -98,8 +109,8 @@ class TradeWallet(object):
             })
 
 
-    def short(self, candle, goalPercent=0.05, goalPrice=None, priceOverride = None, signals = None, timeIndex = None):
-        '''create new buy order'''
+    def short(self, candle, goalPercent=None, goalPrice=None, priceOverride = None, signals = None, timeIndex = None):
+        '''used as an indicator predicting the market will be taking a down turn'''
 
         if self.mode == "simulation":
             utcnow = candle['date']
@@ -112,6 +123,8 @@ class TradeWallet(object):
             price = candle['high']
 
         if goalPrice is None:
+            if goalPercent is None:
+                goalPercent = self.sellGoalPercent
             goalPrice = self.getPriceFromPercent(price,goalPercent)
 
         # sellid= random.randint(1000,99999)
@@ -137,8 +150,16 @@ class TradeWallet(object):
         sigevent.extend(self.reports)
         return sigevent
 
+    def buyCheck(self, buyobj ):
 
-    def buy(self, goalPercent=0.05, goalPrice=None, price= None, signals = None, timeIndex = None, candle=None):
+        res = self.getResults()
+        if res['openTrades'] >= self.maxtrades:
+            return False
+
+        return True
+
+
+    def buy(self, goalPercent=None, goalPrice=None, price= None, signals = None, timeIndex = None, candle=None, qty = None):
         '''create new buy order'''
 
         if self.mode == "simulation":
@@ -147,12 +168,15 @@ class TradeWallet(object):
             utcnow = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')
 
         if goalPrice is None:
+            if goalPercent is None:
+                goalPercent = self.sellGoalPercent
             goalPrice = self.getPriceFromPercent(price,goalPercent)
 
-        qty = 0.01 / price
-        # buyid= random.randint(1000,99999)
+        if qty is None:
+            qty = self.qtyVal / price
+
         buyid = str(uuid.uuid4())
-        self.buys.append( {
+        buyObj = {
             'id': buyid,
             'sell_id': None,
             'status': 'pending',
@@ -165,7 +189,12 @@ class TradeWallet(object):
             'goalPercent': goalPercent,
             'goalPrice': goalPrice,
             'signals': signals
-            } )
+            }
+
+        if self.buyCheck(buyObj):
+            self.buys.append( buyObj )
+        else:
+            self.rejected.append ( buyObj )
 
         self.update()
 
