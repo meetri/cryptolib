@@ -12,7 +12,6 @@ class TradeWallet(object):
         self.sells = []
         self.reports = []
         # self.sell_queue = []
-        self.mode = config.get("mode","simulation")
         self.name = config.get("name","sim1")
         self.market = config.get("market","")
         self.sync = config.get("sync",True)
@@ -34,6 +33,7 @@ class TradeWallet(object):
 
         #mongodb
         self.mongo = MongoWrapper.getInstance().getClient()
+        self.exchange = None
 
 
     def notify(self,msg):
@@ -82,6 +82,19 @@ class TradeWallet(object):
                 }
 
 
+    def exchangeSync(self):
+        if self.exchange is None:
+            return
+
+        for buy in self.buys:
+            if buy['status'] == 'pending':
+                status = self.exchange.getOrderStatus(buy['buy_id'])
+
+        for sell in self.sells:
+            if sell['status'] == 'pending':
+                status = self.exchange.getOrderStatus(buy['buy_id'])
+
+
 
     def setup(self):
         res = self.mongo.crypto.drop_collection("wallet")
@@ -90,7 +103,7 @@ class TradeWallet(object):
 
     def update(self):
         if self.sync:
-            doc = { 'name': self.name, 'mode': self.mode, 'buys': self.buys, 'sells': self.sells, 'rejected': self.rejected }
+            doc = { 'name': self.name, 'buys': self.buys, 'sells': self.sells, 'rejected': self.rejected }
             return self.mongo.crypto.wallet.replace_one({'name':self.name},doc,upsert=True)
 
 
@@ -98,7 +111,6 @@ class TradeWallet(object):
         if self.sync:
             res = self.mongo.crypto.wallet.find_one({'name':self.name})
             if res is not None and 'name' in res:
-                self.mode = res['mode']
                 self.buys = res['buys']
                 self.sells = res['sells']
                 if "rejected" in res:
@@ -107,7 +119,7 @@ class TradeWallet(object):
 
 
     def report(self, candle, signals = None, timeIndex = None ):
-        if self.mode == "simulation":
+        if self.exchange is None:
             utcnow = candle['date']
         else:
             utcnow = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')
@@ -125,7 +137,7 @@ class TradeWallet(object):
     def short(self, candle, goalPercent=None, goalPrice=None, priceOverride = None, signals = None, timeIndex = None):
         '''used as an indicator predicting the market will be taking a down turn'''
 
-        if self.mode == "simulation":
+        if self.exchange is None:
             utcnow = candle['date']
         else:
             utcnow = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')
@@ -160,12 +172,25 @@ class TradeWallet(object):
         sigevent = []
         sigevent.extend(self.buys)
         sigevent.extend(self.sells)
-        sigevent.extend(self.reports)
+        #sigevent.extend(self.reports)
         return sigevent
+
 
     def buyCheck(self, buyobj ):
 
+        reject = False
+
+        for buy in self.buys:
+            if buy['status'] not in ['sold','forsale','error']:
+                if buy['candle'] == buyobj['candle']:
+                    reject = True
+
+                if buyobj['price'] > buy['price'] - (buy['price'] * 0.01):
+                    reject = True
+
+
         res = self.getResults()
+        price = buyobj["price"]
         if res['openTrades'] >= self.maxtrades:
             return False
 
@@ -175,7 +200,7 @@ class TradeWallet(object):
     def buy(self, goalPercent=None, goalPrice=None, price= None, signals = None, timeIndex = None, candle=None, qty = None):
         '''create new buy order'''
 
-        if self.mode == "simulation":
+        if self.exchange is None:
             utcnow = candle['date']
         else:
             utcnow = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')
@@ -188,13 +213,14 @@ class TradeWallet(object):
         if qty is None:
             qty = self.qtyVal / price
 
-        buyid = str(uuid.uuid4())
+        buyid = "sim-{}".format(str(uuid.uuid4()))
         buyObj = {
             'id': buyid,
             'sell_id': None,
             'status': 'pending',
             'type': 'buy',
             'date': utcnow,
+            'market': self.market,
             'candle': candle['date'],
             'index': timeIndex,
             'price': price,
@@ -205,24 +231,25 @@ class TradeWallet(object):
             }
 
         if self.buyCheck(buyObj):
+            if self.exchange is not None:
+                buyObj = self.exchange.buy( buyObj )
+
             self.buys.append( buyObj )
         else:
             self.rejected.append ( buyObj )
 
+        self.update()
+
         self.notify("Market {} buy {} units  @ {}".format(self.market,buyObj["qty"],buyObj["price"]))
 
-        self.update()
+        return buyObj
 
 
     def sell(self, buydata, saledata, signals = None, timeIndex = None ):
         '''place buy order in sell queue'''
 
-        # sellid = random.randint(1000,99999)
         sellid = str(uuid.uuid4())
-        buydata['sell_id'] = sellid
-        buydata["status"] = "sold"
-
-        self.sells.append({
+        sellObj = {
                 'id': sellid,
                 'status': 'pending',
                 'type': 'sell',
@@ -233,9 +260,17 @@ class TradeWallet(object):
                 'buy_price': buydata['price'],
                 'buy_id': buydata['id'],
                 'signals': signals
-                })
+                }
 
-        self.notify("Market {} sold {} units  @ {}".format(self.market,buydata["qty"],buydata["price"]))
+        if self.exchange is not None:
+            sellObj = self.exchange.sell(sellObj)
+
+        buydata['sell_id'] = sellObj["id"]
+        buydata["status"] = "sold"
+
+        self.sells.append(sellObj)
+
+        self.notify("Market {} sold {} units  @ {:.8f}".format(self.market,sellObj["qty"],sellObj["price"]))
 
         self.update()
 
@@ -250,7 +285,7 @@ class TradeWallet(object):
         if goalPrice is None:
             goalPrice = self.getPriceFromPercent(buydata['price'],buydata['goalPercent'])
 
-        if self.mode == "simulation":
+        if self.exchange is None:
             utcnow = candle['date']
         else:
             utcnow = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')

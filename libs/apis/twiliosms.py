@@ -9,6 +9,7 @@ class TwilioSms(object):
         token = urllib.parse.quote_plus(os.getenv("TWILIO_TOKEN",token))
         self.client = Client(sid, token)
 
+
     def send( self,msg, number):
         numlist = number.split(",")
         for num in numlist:
