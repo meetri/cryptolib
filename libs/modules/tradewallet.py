@@ -235,12 +235,13 @@ class TradeWallet(object):
                 buyObj = self.exchange.buy( buyObj )
 
             self.buys.append( buyObj )
+            self.update()
+            self.notify("Market {} buy {} units  @ {}".format(self.market,buyObj["qty"],buyObj["price"]))
         else:
+            buyObj["status"] = "rejected"
             self.rejected.append ( buyObj )
+            self.update()
 
-        self.update()
-
-        self.notify("Market {} buy {} units  @ {}".format(self.market,buyObj["qty"],buyObj["price"]))
 
         return buyObj
 
@@ -269,7 +270,6 @@ class TradeWallet(object):
         buydata["status"] = "sold"
 
         self.sells.append(sellObj)
-
         self.notify("Market {} sold {} units  @ {:.8f}".format(self.market,sellObj["qty"],sellObj["price"]))
 
         self.update()
