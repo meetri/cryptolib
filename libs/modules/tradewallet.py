@@ -36,6 +36,13 @@ class TradeWallet(object):
         self.exchange = None
 
 
+    def reset(self):
+        self.buys = []
+        self.rejected = []
+        self.sells = []
+        self.reports = []
+
+
     def notify(self,msg):
         if self.sync:
             if len(msg) > 0:
@@ -71,6 +78,7 @@ class TradeWallet(object):
         totalTrades = totalSells  + len(self.buys)
 
         return {
+                "last": lastprice,
                 "totalTrades": totalTrades,
                 "totalBuys": len(self.buys),
                 "totalSells": totalSells,
@@ -134,38 +142,10 @@ class TradeWallet(object):
             })
 
 
-    def short(self, candle, goalPercent=None, goalPrice=None, priceOverride = None, signals = None, timeIndex = None):
+    def short(self, candle, price = None, signals = None, timeIndex = None):
         '''used as an indicator predicting the market will be taking a down turn'''
 
-        if self.exchange is None:
-            utcnow = candle['date']
-        else:
-            utcnow = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')
-
-        if priceOverride is not None:
-            price = priceOverride
-        else:
-            price = candle['high']
-
-        if goalPrice is None:
-            if goalPercent is None:
-                goalPercent = self.sellGoalPercent
-            goalPrice = self.getPriceFromPercent(price,goalPercent)
-
-        # sellid= random.randint(1000,99999)
-        sellid = str(uuid.uuid4())
-        self.sells.append( {
-            'id': sellid,
-            'status': 'pending',
-            'type': 'short',
-            'index': timeIndex,
-            'date': utcnow,
-            'candle': candle['date'],
-            'price': price,
-            'signals': signals
-            } )
-
-        self.update()
+        self.checkSales(short=True,candle=candle,price=price,timeIndex=timeIndex,signals=signals)
 
 
     def getSignals(self):
@@ -185,16 +165,16 @@ class TradeWallet(object):
                 if buy['candle'] == buyobj['candle']:
                     reject = True
 
-                if buyobj['price'] > buy['price'] - (buy['price'] * 0.01):
+                if buyobj['price'] > buy['price'] - (buy['price'] * 0.03):
                     reject = True
 
 
         res = self.getResults()
         price = buyobj["price"]
         if res['openTrades'] >= self.maxtrades:
-            return False
+            reject = True
 
-        return True
+        return not reject
 
 
     def buy(self, goalPercent=None, goalPrice=None, price= None, signals = None, timeIndex = None, candle=None, qty = None):
@@ -246,7 +226,7 @@ class TradeWallet(object):
         return buyObj
 
 
-    def sell(self, buydata, saledata, signals = None, timeIndex = None ):
+    def sell(self, buydata, saledata, signals = None, timeIndex = None):
         '''place buy order in sell queue'''
 
         sellid = str(uuid.uuid4())
@@ -270,9 +250,10 @@ class TradeWallet(object):
         buydata["status"] = "sold"
 
         self.sells.append(sellObj)
+        self.update()
+
         self.notify("Market {} sold {} units  @ {:.8f}".format(self.market,sellObj["qty"],sellObj["price"]))
 
-        self.update()
 
 
     # TODO:
@@ -280,7 +261,7 @@ class TradeWallet(object):
         return (price * percent) + price
 
 
-    def isForSale(self, candle, price, buydata):
+    def isForSale(self, candle, price, buydata,short=False):
         goalPrice = buydata['goalPrice']
         if goalPrice is None:
             goalPrice = self.getPriceFromPercent(buydata['price'],buydata['goalPercent'])
@@ -290,7 +271,7 @@ class TradeWallet(object):
         else:
             utcnow = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')
 
-        forsale = price >= goalPrice
+        forsale = short or price >= goalPrice
 
         return {
                 "status": forsale,
@@ -302,10 +283,10 @@ class TradeWallet(object):
                 }
 
 
-    def checkSales(self,candle, price, timeIndex = None, shortScore = 0):
+    def checkSales(self,candle, price, timeIndex = None, shortScore = 0, short = False, signals = None):
         for buydata in self.buys:
             if buydata['sell_id'] is None:
-                sale = self.isForSale(candle,price,buydata)
+                sale = self.isForSale(candle,price,buydata,short=short)
                 if sale['status']:
-                    self.sell( buydata, sale, timeIndex=timeIndex )
+                    self.sell( buydata, sale, timeIndex=timeIndex, signals=signals )
 
