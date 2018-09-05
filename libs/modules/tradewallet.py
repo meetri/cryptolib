@@ -19,9 +19,9 @@ class TradeWallet(object):
         self.maxtrades = config.get("trades",5)
 
         if self.scale == 2:
-            self.budget = config.get("budget",500)
+            self.budget = config.get("budget",100)
         else:
-            self.budget = config.get("budget",0.5)
+            self.budget = config.get("budget",0.1)
             #self.qtyVal = config.get("qtyVal",0.02) # in bitcoin
 
         self.qtyVal = self.budget / self.maxtrades
@@ -61,7 +61,7 @@ class TradeWallet(object):
         openTrades = 0
         totalprofit = 0
         for trade in self.buys:
-            if trade["status"] not in ["sold","forsale"]:
+            if trade["status"] not in ["completed","sold","forsale"]:
                 openTrades+=1
                 if lastprice is not None:
                     totalprofit += (lastprice - trade["price"])*trade["qty"]
@@ -95,12 +95,18 @@ class TradeWallet(object):
             return
 
         for buy in self.buys:
-            if buy['status'] == 'pending':
-                status = self.exchange.getOrderStatus(buy['buy_id'])
+            if buy["status"] in ["pending","partial"]:
+                buy.update(self.exchange.getOrderStatus(buy['id']))
+                if buy["status"] in ["completed","cancelled"]:
+                    self.notify("Market {} {} buy of {} units @ {:.8f}".format(self.market,buy["status"],buy["qty"],buy["price"]))
 
         for sell in self.sells:
-            if sell['status'] == 'pending':
-                status = self.exchange.getOrderStatus(buy['buy_id'])
+            if sell["status"] in ["pending","partial"]:
+                sell.update(self.exchange.getOrderStatus(sell['id']))
+                if sell["status"] in ["completed","cancelled"]:
+                    self.notify("Market {} {} sell of {} units @ {:.8f}".format(self.market,sell['status'],sell["qty"],sell["price"]))
+
+        self.update()
 
 
 
@@ -161,12 +167,13 @@ class TradeWallet(object):
         reject = False
 
         for buy in self.buys:
-            if buy['status'] not in ['sold','forsale','error']:
+            if buy['status'] in ['pending','completed','partial']:
                 if buy['candle'] == buyobj['candle']:
                     reject = True
 
-                if buyobj['price'] > buy['price'] - (buy['price'] * 0.03):
-                    reject = True
+                #TODO: Add time restraints...
+                #if buyobj['price'] > buy['price'] - (buy['price'] * 0.03):
+                #    reject = True
 
 
         res = self.getResults()
@@ -179,6 +186,9 @@ class TradeWallet(object):
 
     def buy(self, goalPercent=None, goalPrice=None, price= None, signals = None, timeIndex = None, candle=None, qty = None):
         '''create new buy order'''
+
+        if candle is None:
+            candle = { "date":datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S') }
 
         if self.exchange is None:
             utcnow = candle['date']
@@ -213,30 +223,42 @@ class TradeWallet(object):
         if self.buyCheck(buyObj):
             if self.exchange is not None:
                 buyObj = self.exchange.buy( buyObj )
+            else:
+                buyObj["status"] = "completed"
 
             self.buys.append( buyObj )
             self.update()
-            self.notify("Market {} buy {} units  @ {}".format(self.market,buyObj["qty"],buyObj["price"]))
+            self.notify("Market {} bid {} units  @ {:.8f} btc".format(self.market,buyObj["qty"],buyObj["price"]))
         else:
             buyObj["status"] = "rejected"
             self.rejected.append ( buyObj )
-            self.update()
-
+            #self.update()
 
         return buyObj
 
 
-    def sell(self, buydata, saledata, signals = None, timeIndex = None):
+    def sell(self, buydata, saledata = None, price=None, signals = None, timeIndex = None):
         '''place buy order in sell queue'''
 
-        sellid = str(uuid.uuid4())
+        if saledata is None:
+            utcnow = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')
+            if price is not None:
+                saleprice = price
+            else:
+                saleprice = buydata["goalPrice"]
+        else:
+            saleprice = saledata['price']
+            utcnow = saledata['date']
+
+        sellid = "sim-{}".format(str(uuid.uuid4()))
         sellObj = {
                 'id': sellid,
+                'market': buydata['market'],
                 'status': 'pending',
                 'type': 'sell',
-                'date': saledata['date'],
+                'date': utcnow,
                 'index': timeIndex,
-                'price': saledata['price'],
+                'price': saleprice,
                 'qty': buydata['qty'],
                 'buy_price': buydata['price'],
                 'buy_id': buydata['id'],
@@ -245,14 +267,14 @@ class TradeWallet(object):
 
         if self.exchange is not None:
             sellObj = self.exchange.sell(sellObj)
-
-        buydata['sell_id'] = sellObj["id"]
-        buydata["status"] = "sold"
+            buydata['sell_id'] = sellObj["id"]
+        else:
+            sellObj["status"] = "completed"
 
         self.sells.append(sellObj)
         self.update()
 
-        self.notify("Market {} sold {} units  @ {:.8f}".format(self.market,sellObj["qty"],sellObj["price"]))
+        self.notify("Market {} ask {} units  @ {:.8f} btc ".format(self.market,sellObj["qty"],sellObj["price"]))
 
 
 
@@ -262,6 +284,10 @@ class TradeWallet(object):
 
 
     def isForSale(self, candle, price, buydata,short=False):
+
+        if buydata["status"] not in ["completed"]:
+            return { "status": False }
+
         goalPrice = buydata['goalPrice']
         if goalPrice is None:
             goalPrice = self.getPriceFromPercent(buydata['price'],buydata['goalPercent'])
@@ -288,5 +314,5 @@ class TradeWallet(object):
             if buydata['sell_id'] is None:
                 sale = self.isForSale(candle,price,buydata,short=short)
                 if sale['status']:
-                    self.sell( buydata, sale, timeIndex=timeIndex, signals=signals )
+                    self.sell( buydata, saledata=sale, timeIndex=timeIndex, signals=signals )
 

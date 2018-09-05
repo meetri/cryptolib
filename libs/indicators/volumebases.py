@@ -18,11 +18,14 @@ class VolumeBases(BaseIndicator):
     def getBases(self):
         bases = []
         for idx,t in enumerate( self.csdata["time"]):
-            if not numpy.isnan(self.csdata["volume"][idx]) and not numpy.isnan(self.vsma[idx]):
-                mx = self.csdata["volume"][idx] / self.vsma[idx]
-                if mx > self.vmx:
-                    self.addBase(bases,idx,"low")
-                    self.addBase(bases,idx,"high")
+            try:
+                if not numpy.isnan(self.csdata["volume"][idx]) and not numpy.isnan(self.vsma[idx]) and self.vsma[idx] != 0:
+                    mx = self.csdata["volume"][idx] / self.vsma[idx]
+                    if mx > self.vmx:
+                        self.addBase(bases,idx,"low")
+                        self.addBase(bases,idx,"high")
+            except Exception as ex:
+                print("Error: vol:{}, vsma:{}\nError: {}".format(self.csdata["volume"][idx],self.vsma[idx],ex))
 
         return bases
 

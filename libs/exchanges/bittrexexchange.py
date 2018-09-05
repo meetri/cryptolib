@@ -14,17 +14,15 @@ class BittrexExchange(object):
         else:
             buyOrder["status"] = "error"
 
-        buyOrder["exchange.order"] = r
         return buyOrder
 
 
     def sell(self, sellOrder):
         r = self.api.market_selllimit( sellOrder["market"], sellOrder["qty"], sellOrder["price"] ).getData()
         if r["success"]:
-            buyOrder["id"] = r["result"]["uuid"]
-            buyOrder["exchange.order"] = r
+            sellOrder["id"] = r["result"]["uuid"]
         else:
-            buyOrder["status"] = "error"
+            sellOrder["status"] = "error"
         return sellOrder
 
 
@@ -33,9 +31,34 @@ class BittrexExchange(object):
         return r
 
 
-    def getOrderStatus(self, orderId):
+    def getOrderStatusDirect(self,orderId):
         r = self.api.account_get_order( orderId ).getData()
         return r
+
+
+    def getOrderStatus(self, orderId):
+        resp = self.getOrderStatusDirect(orderId)
+        # print(resp)
+
+        status = "pending"
+
+        if resp["result"]["Quantity"] != resp["result"]["QuantityRemaining"]:
+            status = "partial"
+
+        if not resp["result"]["IsOpen"]:
+            status = "completed"
+
+        if resp["result"]["CancelInitiated"]:
+            status = "cancelled"
+
+        return {
+                "status": status,
+                "remaining": resp["result"]["QuantityRemaining"],
+                "commissionPaid": resp["result"]["CommissionPaid"],
+                "opened": resp["result"]["Opened"],
+                "closed": resp["result"]["Closed"]
+                }
+
 
 
 
