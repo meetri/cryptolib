@@ -265,11 +265,12 @@ class TradeWallet(object):
                 'signals': signals
                 }
 
+        buydata['sell_id'] = sellObj["id"]
         if self.exchange is not None:
             sellObj = self.exchange.sell(sellObj)
-            buydata['sell_id'] = sellObj["id"]
         else:
             sellObj["status"] = "completed"
+
 
         self.sells.append(sellObj)
         self.update()
@@ -285,7 +286,7 @@ class TradeWallet(object):
 
     def isForSale(self, candle, price, buydata,short=False):
 
-        if buydata["status"] not in ["completed"]:
+        if buydata["status"] not in ["completed"] or buydata["sell_id"] is not None:
             return { "status": False }
 
         goalPrice = buydata['goalPrice']
@@ -311,8 +312,7 @@ class TradeWallet(object):
 
     def checkSales(self,candle, price, timeIndex = None, shortScore = 0, short = False, signals = None):
         for buydata in self.buys:
-            if buydata['sell_id'] is None:
-                sale = self.isForSale(candle,price,buydata,short=short)
-                if sale['status']:
-                    self.sell( buydata, saledata=sale, timeIndex=timeIndex, signals=signals )
+            sale = self.isForSale(candle,price,buydata,short=short)
+            if sale['status']:
+                self.sell( buydata, saledata=sale, timeIndex=timeIndex, signals=signals )
 
