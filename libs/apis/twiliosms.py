@@ -4,7 +4,7 @@ from twilio.rest import Client
 class TwilioSms(object):
 
     def __init__(self,sms_from=None,sid=None,token=None):
-        self.sms_from = str(os.getenv("TWILIO_FROM",sms_from))
+        self.sms_from = os.getenv("TWILIO_FROM",sms_from).strip()
         sid = os.getenv("TWILIO_SID",sid)
         token = os.getenv("TWILIO_TOKEN",token)
         self.client = Client(sid, token)
