@@ -78,9 +78,9 @@ class SMA(BaseIndicator):
             candles = len(self.data)-1
 
         for k in range(-1,-1*candles,-1):
-            if slope == None:
+            if slope == None and self.data[k] != 0:
                 slope = self.data[k-1] / self.data[k]
-            else:
+            elif self.data[k] != 0:
                 slope = slope / ( self.data[k-1] / self.data[k] )
 
 
