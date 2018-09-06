@@ -62,7 +62,7 @@ class TradeWallet(object):
         totalprofit = 0
         for trade in self.buys:
             # if trade["status"] not in ["completed","sold","forsale"]:
-            if trade["sell_id"] is None and trade["status"] not in ["cancelled"]
+            if trade["sell_id"] is None and trade["status"] not in ["cancelled"]:
                 openTrades+=1
                 if lastprice is not None:
                     totalprofit += (lastprice - trade["price"])*trade["qty"]
