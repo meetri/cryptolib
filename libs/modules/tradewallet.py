@@ -7,28 +7,30 @@ from twiliosms import TwilioSms
 class TradeWallet(object):
 
     def __init__( self, config = {}):
+
         self.buys = []
         self.rejected = []
         self.sells = []
         self.reports = []
-        # self.sell_queue = []
+
         self.name = config.get("name","sim1")
         self.market = config.get("market","")
         self.sync = config.get("sync",True)
         self.scale = config.get("scale",8)
         self.maxtrades = config.get("trades",5)
 
+
         if self.scale == 2:
             self.budget = config.get("budget",100)
         else:
             self.budget = config.get("budget",0.1)
-            #self.qtyVal = config.get("qtyVal",0.02) # in bitcoin
 
         self.qtyVal = self.budget / self.maxtrades
 
-        self.sellGoalPercent= config.get("sellGoalPercent",0.05)
+        self.sellGoalPercent = config.get("sellGoalPercent",0.05)
+        self.stopLossPercent = config.get("sellGoalPercent",-0.025)
 
-        self.sms = TwilioSms()
+        self.sms = TwilioSms.getInstance()
         self.notifyList = os.getenv("TRADEBOT_NOTIFY","")
 
         #mongodb
@@ -167,15 +169,21 @@ class TradeWallet(object):
 
         reject = False
 
+        rejCount = 2
         for buy in self.buys:
-            if buy['status'] in ['pending','completed','partial']:
+            if buy['sell_id'] is None and buy['status'] not in ['cancelled']:
                 if buy['candle'] == buyobj['candle']:
                     reject = True
 
+                if buy['price'] <= buyobj['price']:
+                    rejCount -= 1
                 #TODO: Add time restraints...
                 #if buyobj['price'] > buy['price'] - (buy['price'] * 0.03):
                 #    reject = True
 
+
+        if rejCount <= 0:
+            reject = True
 
         res = self.getResults()
         price = buyobj["price"]
@@ -201,6 +209,10 @@ class TradeWallet(object):
                 goalPercent = self.sellGoalPercent
             goalPrice = self.getPriceFromPercent(price,goalPercent)
 
+        stopLossPrice = None
+        if self.stopLossPercent is not None:
+            stopLossPrice = self.getPriceFromPercent(price,self.stopLossPercent)
+
         if qty is None:
             qty = self.qtyVal / price
 
@@ -218,6 +230,7 @@ class TradeWallet(object):
             'qty': qty,
             'goalPercent': goalPercent,
             'goalPrice': goalPrice,
+            'stopLossPrice': stopLossPrice,
             'signals': signals
             }
 
@@ -299,7 +312,8 @@ class TradeWallet(object):
         else:
             utcnow = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')
 
-        forsale = short or price >= goalPrice
+        triggerStopLoss  = buydata["stopLossPrice"] is not None and price <= buydata["stopLossPrice"]
+        forsale = triggerStopLoss or short or price >= goalPrice
 
         return {
                 "status": forsale,
