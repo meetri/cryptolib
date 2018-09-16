@@ -298,7 +298,7 @@ class TradeWallet(object):
         return (price * percent) + price
 
 
-    def isForSale(self, candle, price, buydata,short=False):
+    def isForSale(self, candle, price, buydata,short=False,checkStops = False):
 
         if buydata["status"] not in ["completed"] or buydata["sell_id"] is not None:
             return { "status": False }
@@ -312,8 +312,10 @@ class TradeWallet(object):
         else:
             utcnow = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')
 
-        triggerStopLoss  = buydata["stopLossPrice"] is not None and price <= buydata["stopLossPrice"]
-        forsale = triggerStopLoss or short or price >= goalPrice
+        if checkStops:
+            forsale = buydata["stopLossPrice"] is not None and price <= buydata["stopLossPrice"]
+        else:
+            forsale = short or price >= goalPrice
 
         return {
                 "status": forsale,
@@ -326,8 +328,20 @@ class TradeWallet(object):
 
 
     def checkSales(self,candle, price, timeIndex = None, shortScore = 0, short = False, signals = None):
+        sold = False
         for buydata in self.buys:
             sale = self.isForSale(candle,price,buydata,short=short)
             if sale['status']:
                 self.sell( buydata, saledata=sale, timeIndex=timeIndex, signals=signals )
+                sold = True
+        return sold
 
+
+    def checkStops(self,candle, price, timeIndex = None, shortScore = 0, short = False, signals = None):
+        sold = False
+        for buydata in self.buys:
+            sale = self.isForSale(candle,price,buydata,short=short,checkStops=True)
+            if sale['status']:
+                self.sell( buydata, saledata=sale, timeIndex=timeIndex, signals=signals )
+                sold = True
+        return sold

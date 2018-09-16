@@ -5,13 +5,14 @@ from botdata import BotDataProvider
 from tcpsock import TcpSock
 from bittrex import Bittrex
 from scraper import Scraper
+from tradewallet import TradeWallet
 from mongowrapper import MongoWrapper
 from threading import Thread
 
 
 class Bot(object):
 
-    def __init__(self, name, config):
+    def __init__(self, name, config,settings=None):
 
         self.log = logging.getLogger('crypto')
 
@@ -35,6 +36,10 @@ class Bot(object):
         else:
             self.scale  = config.get("scale",8)
 
+
+        # sync wallet with database ?
+        self.syncWallet = config.get("syncWallet",False)
+
         #candlestick data
         self.csdata = None
         self.market_summary = None
@@ -51,6 +56,20 @@ class Bot(object):
         #tcp socket
         self.tcpsock = None
 
+        # signal details
+        self.history = []
+
+        # bot signals
+        self.signals = None
+
+        #cached api results
+        self.apiInfo = {}
+
+        #bot settings
+        self.defaults = None
+        self.setDefaults()
+        self.settings = self.updateSettings(settings)
+
         #threadHandler
         self.thread = None
         self.botSleep = 15
@@ -58,6 +77,81 @@ class Bot(object):
         self.eticks = 0
         self.rticks = 0
 
+        wname = "sim:{}:{}".format(self.name,self.market)
+        self.simwallet = TradeWallet({'market':self.market,'name':wname,'sync':False,'scale':self.scale})
+
+        wname = "{}:{}".format(self.name,self.market)
+        self.wallet = TradeWallet({'market':self.market,'name':wname,'mode':'live','sync':self.syncWallet,'scale':self.scale})
+
+        if self.syncWallet:
+            self.wallet.load()
+            self.wallet.notify("Traderbot {}: {} started".format(self.name,self.market))
+
+    def configure(self, config ):
+        self.config = {
+            "market": "",
+            "candlesize": "5m",
+            "budget": 0.01,
+            "maxtrades": 5,
+            "target": 0.05,
+            "stop": 0.025,
+            "notify": ""
+            }
+
+        self.config = { **self.config, **config }
+
+
+    def setDefaults(self):
+        self.defaults = {
+                "rsi.buy": 35,
+                "rsi.sell": 65,
+                "baseMinDistance": 0.04,
+                "baseMultiplier": 10,
+                "short.sma.period": 50,
+                "long.sma.period": 200,
+                "sma.bear.score": -25,
+                "sma.bull.score": 5,
+                "death.cross": -100,
+                "golden.cross": 20,
+                "dband.top": -15,
+                "dband.bottom": 15,
+                "bband.below": 5,
+                "bband.above": -15,
+                "bband.enter.bottom": 10,
+                }
+
+    def updateSettings(self,override = None):
+        if override != None:
+            self.settings = {**self.defaults,**override}
+        else:
+            self.settings = self.defaults
+
+        return self.settings
+
+
+    def score( self, score, csdataIndex, message ):
+        self.history.append({
+            'candle': self.csdata['time'][csdataIndex],
+            "score": score,
+            "message": message
+            })
+        return score
+
+
+    def getInfo(self, query=None):
+        if query in self.apiInfo:
+            return self.apiInfo[query]
+        elif query == "stop":
+            self.stopped = True
+            return json.dumps({ "message": "bot stopped" })
+
+
+    def getSignals(self,idx):
+        return { 'signal': None, 'score': 0, 'messages': self.history }
+
+
+    def buildOutput(self):
+        self.apiInfo["help"] = json.dumps({ "message": "no help here buddy" })
 
     def processRunner(self):
         while not self.stopped:
@@ -95,20 +189,24 @@ class Bot(object):
         csdata = None
         if scrape:
             try:
-                csdata = Scraper({'market':self.market}).cc_scrapeCandle("1m")
+                if self.candlesize == "1d" or self.candlesize == "1h":
+                    cs = self.candlesize
+                else:
+                    cs = "1m"
+                csdata = Scraper({'market':self.market}).cc_scrapeCandle(cs)
                 self.scrapeDate = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')
                 self.rticks += 1
             except Exception as ex:
                 print(ex)
 
-            if self.candlesize not in ("1m"):
+            if self.candlesize not in ("1m","1d","1h"):
                 csdata = None
 
         self.loadCandlesticks(csdata)
 
         self.market_summary = Bittrex().public_get_market_summary(self.market).data["result"][0]
         self.last = self.market_summary['Last']
-        self.csdata['closed'][-1] = self.last
+        # self.csdata['closed'][-1] = self.last
 
 
         self.calculate_ta()
@@ -166,10 +264,6 @@ class Bot(object):
 
     def getName(self):
         return self.name
-
-
-    def getInfo(self,query=None):
-        return {}
 
 
     def getIndicators(self):
