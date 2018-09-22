@@ -76,6 +76,9 @@ class Bot(object):
         self.ticks = 0
         self.eticks = 0
         self.rticks = 0
+        self.refresh_high = None
+        self.refresh_low = None
+        self.candle_remaining = None
 
         wname = "sim:{}:{}".format(self.name,self.market)
         self.simwallet = TradeWallet({'market':self.market,'name':wname,'sync':False,'scale':self.scale})
@@ -186,28 +189,44 @@ class Bot(object):
 
 
     def refresh(self, scrape=False):
-        csdata = None
-        if scrape:
-            try:
-                if self.candlesize == "1d" or self.candlesize == "1h":
-                    cs = self.candlesize
-                else:
-                    cs = "1m"
-                csdata = Scraper({'market':self.market}).cc_scrapeCandle(cs)
-                self.scrapeDate = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')
-                self.rticks += 1
-            except Exception as ex:
-                print(ex)
 
-            if self.candlesize not in ("1m","1d","1h"):
-                csdata = None
+        self.candle_remaining = self.trader.getCandleRemaining()
+        if self.candle_remaining is None:
+            print('scraping')
+            csdata = None
+            if scrape:
+                try:
+                    if self.candlesize == "1d" or self.candlesize == "1h":
+                        cs = self.candlesize
+                    else:
+                        cs = "1m"
+                    csdata = Scraper({'market':self.market}).cc_scrapeCandle(cs)
+                    self.scrapeDate = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')
+                    self.rticks += 1
+                except Exception as ex:
+                    print(ex)
 
-        self.loadCandlesticks(csdata)
+                if self.candlesize not in ("1m","1d","1h"):
+                    csdata = None
+
+            self.loadCandlesticks(csdata)
+
 
         self.market_summary = Bittrex().public_get_market_summary(self.market).data["result"][0]
         self.last = self.market_summary['Last']
-        # self.csdata['closed'][-1] = self.last
+        self.csdata['closed'][-1] = self.last
 
+        if self.candle_remaining is not None:
+            if self.last > self.refresh_high:
+                self.refresh_high == self.last
+            if self.last < self.refresh_low:
+                self.refresh_low = self.last
+        else:
+            self.refresh_high = self.csdata["high"][-1]
+            self.refresh_low  = self.csdata["low"][-1]
+
+        self.csdata["high"][-1] = self.refresh_high
+        self.csdata["low"][-1] = self.refresh_low
 
         self.calculate_ta()
 

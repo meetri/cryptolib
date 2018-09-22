@@ -38,13 +38,16 @@ class Bittrex(object):
         apisign = hmac.new ( self.api_secret.encode(), uri.encode(), hashlib.sha512 ).hexdigest()
         self.headers["apisign"] = apisign
 
-        self.response = requests.post( uri , data = json.dumps(payload) , headers = self.headers, timeout=self.timeout )
+        if len(payload) > 0:
+            self.response = requests.post( uri , data = json.dumps(payload) , headers = self.headers, timeout=self.timeout )
+        else:
+            self.response = requests.get( uri , headers = self.headers, timeout=self.timeout )
         self.response.raise_for_status()
         self.data = self.response.json()
 
         return self
 
-    def private_process(self, api_path, payload = {}):
+    def private_process(self, api_path, payload = None):
 
         appendchar = "?"
         if appendchar in api_path:
@@ -55,7 +58,11 @@ class Bittrex(object):
         apisign = hmac.new ( self.api_secret.encode(), uri.encode(), hashlib.sha512 ).hexdigest()
         self.headers["apisign"] = apisign
 
-        self.response = requests.post( uri , data = json.dumps(payload) , headers = self.headers, timeout=self.timeout )
+        if payload is None:
+            self.response = requests.get( uri , headers = self.headers, timeout=self.timeout )
+        else:
+            self.response = requests.get( uri , data = json.dumps(payload) , headers = self.headers, timeout=self.timeout )
+
         self.response.raise_for_status()
         self.data = self.response.json()
 
@@ -142,7 +149,7 @@ class Bittrex(object):
         return self.process("public/getorderbook?market={}&type={}".format(market,obType))
 
     def public_get_market_history(self, market ):
-        return self.process("public/getmarkethistory?market={}".format(market))
+        return self.process("public/getmarket?market={}".format(market))
 
     def market_buylimit( self, market, quantity, rate ):
         return self.private_process("market/buylimit?market={}&quantity={}&rate={}".format(market,quantity,rate))
@@ -166,6 +173,9 @@ class Bittrex(object):
 
     def account_get_order( self, uuid ):
         return self.private_process("account/getorder?uuid={}".format(uuid))
+
+    def account_get_orderhistory( self):
+        return self.private_process("account/getorderhistory")
 
     def account_get_balances( self ):
         return self.private_process("account/getbalances")

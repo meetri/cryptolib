@@ -14,7 +14,7 @@ class TwilioSms(object):
         token = os.getenv("TWILIO_TOKEN",token)
         self.client = Client(sid, token)
         # print("twilio_from: '{}'".format(self.sms_from))
-        print("twilio_sid: '{}'".format(sid))
+        # print("twilio_sid: '{}'".format(sid))
         # print("twilio_token: '{}'".format(token))
 
     @staticmethod

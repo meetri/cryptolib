@@ -14,6 +14,7 @@ class Trader(object):
         self.cssize = None
         self.candle_seconds = 0
         self.candle_remaining = 0
+        self.candle_last_time = None
         if currency is not None:
             self.market = CoinCalc.getInstance().get_market(currency)
 
@@ -40,6 +41,13 @@ class Trader(object):
         rem = sec_ofs / ( sec_ofs - remaining)
         return cs[volkey][-1] * rem
 
+    def getCandleRemaining(self):
+        rem = None
+        if self.candle_last_time is not None:
+            ts = time.time() - self.candle_last_time
+            if ts < self.candle_remaining:
+                return self.candle_remaining - ts
+        return rem
 
     def get_candlesticks(self, timeframe = "1h", size = "1m", dateOffset = "now()" , base_size="1m"):
         self.timeframe = timeframe
@@ -61,7 +69,6 @@ class Trader(object):
 
             pres = self.influxdb.raw_query("""SELECT SUM(base_volume) AS base_volume, SUM(volume) AS volume, MAX(high) as high, MIN(low) as low, FIRST(open) as open, LAST(close) AS close FROM "market_ohlc" WHERE market='{0}' AND time < '{1}' AND time > '{1}' - {2} AND period='{4}' GROUP BY time({3})""".format(self.market,dateOffset,timeframe,size,base_size))
             points = pres.get_points()
-
 
         else:
             points = self.influxdb.raw_query("""select base_volume, volume, open, high, low, close FROM "market_ohlc" WHERE market='{0}' AND time < {1} AND time > {1} - {2} AND period='{3}'""".format(self.market,dateOffset,timeframe,size)).get_points()
@@ -89,6 +96,9 @@ class Trader(object):
 
         self.candle_remaining = sec_ofs - ts
         self.candle_seconds = sec_ofs
+        self.candle_last_time = time.time()
+
+
 
 
         if psize == 0:

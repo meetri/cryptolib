@@ -192,6 +192,42 @@ class TradeWallet(object):
 
         return not reject
 
+    def createBuy(self,market,price,qty,buydate=None,goalPercent=0.05,stopLossPercent=None):
+        """create buy order"""
+
+        utcnow = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')
+        if buydate is None:
+            buydate = utcnow
+
+        buyid = "watch-{}".format(str(uuid.uuid4()))
+
+        if goalPercent is None:
+            goalPercent = self.sellGoalPercent
+
+        stopLossPrice = None
+        if stopLossPercent is not None:
+            stopLossPrice = self.getPriceFromPercent(price,stopLossPercent)
+
+        goalPrice = self.getPriceFromPercent(price,goalPercent)
+
+        buyObj = {
+            'id': buyid,
+            'sell_id': None,
+            'status': 'completed',
+            'type': 'buy',
+            'date': utcnow,
+            'market': market,
+            'candle': buydate,
+            'index': 0,
+            'price': price,
+            'qty': qty,
+            'goalPercent': goalPercent,
+            'goalPrice': goalPrice,
+            'stopLossPrice': stopLossPrice
+            }
+        self.buys.append(buyObj)
+        self.update()
+
 
     def buy(self, goalPercent=None, goalPrice=None, price= None, signals = None, timeIndex = None, candle=None, qty = None):
         '''create new buy order'''
