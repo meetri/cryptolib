@@ -326,6 +326,7 @@ class TradeWallet(object):
         self.update()
 
         self.notify("Market {} ask {} units  @ {:.8f} btc ".format(self.market,sellObj["qty"],sellObj["price"]))
+        return sellObj
 
 
 

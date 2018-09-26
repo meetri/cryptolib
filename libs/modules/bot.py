@@ -192,7 +192,7 @@ class Bot(object):
 
         self.candle_remaining = self.trader.getCandleRemaining()
         if self.candle_remaining is None:
-            print('scraping')
+            #print('scraping')
             csdata = None
             if scrape:
                 try:
@@ -224,6 +224,8 @@ class Bot(object):
         else:
             self.refresh_high = self.csdata["high"][-1]
             self.refresh_low  = self.csdata["low"][-1]
+
+        #self.candle_remaining = self.trader.candle_remaining
 
         self.csdata["high"][-1] = self.refresh_high
         self.csdata["low"][-1] = self.refresh_low

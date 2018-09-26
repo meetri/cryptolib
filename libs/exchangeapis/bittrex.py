@@ -167,7 +167,7 @@ class Bittrex(object):
     def market_cancel( self, uuid ):
         return self.private_process("market/cancel?uuid={}".format(uuid))
 
-    def market_get_open_orders( self, market):
+    def market_get_open_orders( self, market = ""):
         return self.private_process("market/getopenorders?market={}".format(market))
 
 
