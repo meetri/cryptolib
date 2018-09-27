@@ -25,9 +25,13 @@ class Scraper(object):
         self.bittrex = Bittrex()
         self.cryptocompare = CryptoCompare()
 
+    def cc_lastprice(self):
+        resp = self.cryptocompare.lastprice(self.exchange, self.market)
+        return resp
+
     def cc_scrapeCandle(self,period="1m"):
         lasttime = self.getLastCandle(period)
-        # print("scraping market: {}, period {}, last candle: {}".format(self.market,period,lasttime))
+        # print("scraping market: {}, exchange: {}, period {}, last candle: {}".format(self.market,self.exchange,period,lasttime))
         resp = self.cryptocompare.get_candles(self.exchange,self.market,period)
         data = resp.data
         skip = True
@@ -36,11 +40,14 @@ class Scraper(object):
             if lasttime == "" or lasttime == t:
                 skip = False
 
-            tt = time.mktime(datetime.datetime.strptime(t, "%Y-%m-%dT%H:%M:%S").timetuple())
-            lt = time.mktime(datetime.datetime.strptime(lasttime, "%Y-%m-%dT%H:%M:%S").timetuple())
-            if lt < tt and skip:
-                print("missing a lot of data")
+            if lasttime is None:
                 skip = False
+            else:
+                tt = time.mktime(datetime.datetime.strptime(t, "%Y-%m-%dT%H:%M:%S").timetuple())
+                lt = time.mktime(datetime.datetime.strptime(lasttime, "%Y-%m-%dT%H:%M:%S").timetuple())
+                if lt < tt and skip:
+                    # print("missing a lot of data")
+                    skip = False
 
             # print("lasttime = {} , t = {}, skip = {}".format(lasttime,t,skip))
             # if not skip and lasttime != t:

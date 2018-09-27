@@ -2,14 +2,13 @@ import os
 import requests
 import json
 
-class CryptoCompare(object):
 
-    def __init__(self,appname="mycryptodata__thankyou"):
-        self.name = "cryptocompare"
+class GenericApi(object):
+
+    def __init__(self, config):
+
         self.timeout = 4
-        self.api_root = "https://min-api.cryptocompare.com/"
-
-        self.app_name = appname
+        self.api_root = config.get("apiroot")
 
         self.response = None
         self.data = None
@@ -18,30 +17,26 @@ class CryptoCompare(object):
             "Content-Type": "application/json",
         }
 
-
-    def process(self, api_path, payload = {}, api_root = None):
+    def process(self, api_path, payload=None):
 
         appendchar = "?"
         if appendchar in api_path:
             appendchar = "&"
 
-        if api_root is None:
-            api_root = self.api_root
+        api_root = self.api_root
 
-        uri = "{}{}{}extraParams={}".format(api_root,api_path,appendchar,self.app_name)
+        uri = "{}{}{}".format(api_root,appendchar,api_path)
 
-        self.response = requests.post( uri , data = json.dumps(payload) , headers = self.headers, timeout=self.timeout )
+        print(uri)
+        if payload is None:
+            self.response = requests.get(uri, headers = self.headers, timeout=self.timeout)
+        else:
+            self.response = requests.post(uri, data=json.dumps(payload), headers=self.headers, timeout=self.timeout)
+
         self.response.raise_for_status()
         self.data = self.response.json()
 
         return self
-
-    def lastprice(self, exchange, market):
-        dest_market, source_market = market.split("-")
-        req = "data/price?e={}&fsym={}&tsyms={}".format(exchange,source_market,dest_market)
-        resp = self.process(req).data
-        if dest_market in resp:
-            return resp[dest_market]
 
     def top_markets(self,limit=10,basecurrency='BTC'):
         return self.process("data/top/volumes?tsym={}&limit={}".format(basecurrency,limit))

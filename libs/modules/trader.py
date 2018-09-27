@@ -5,9 +5,12 @@ from exchange import Exchange
 
 class Trader(object):
 
-    def __init__(self, market = None, currency = None):
+    def __init__(self, market = None, exchange=None, currency=None):
         self.influxdb = InfluxDbWrapper.getInstance()
         self.market = market
+        if exchange is None:
+            exchange = "bittrex"
+        self.exchange = exchange
         self.cs = None
         self.indicators = None
         self.timeframe = None
@@ -67,11 +70,11 @@ class Trader(object):
         if len(base_size) > 0:
             dateOffset = (datetime.datetime.utcnow() - datetime.timedelta(seconds=ts) + datetime.timedelta(seconds=sec_ofs)).strftime('%Y-%m-%dT%H:%M:%SZ')
 
-            pres = self.influxdb.raw_query("""SELECT SUM(base_volume) AS base_volume, SUM(volume) AS volume, MAX(high) as high, MIN(low) as low, FIRST(open) as open, LAST(close) AS close FROM "market_ohlc" WHERE market='{0}' AND time < '{1}' AND time > '{1}' - {2} AND period='{4}' GROUP BY time({3})""".format(self.market,dateOffset,timeframe,size,base_size))
+            pres = self.influxdb.raw_query("""SELECT SUM(base_volume) AS base_volume, SUM(volume) AS volume, MAX(high) as high, MIN(low) as low, FIRST(open) as open, LAST(close) AS close FROM "market_ohlc" WHERE market='{0}' AND exchange='{5}' AND time < '{1}' AND time > '{1}' - {2} AND period='{4}' GROUP BY time({3})""".format(self.market,dateOffset,timeframe,size,base_size,self.exchange))
             points = pres.get_points()
 
         else:
-            points = self.influxdb.raw_query("""select base_volume, volume, open, high, low, close FROM "market_ohlc" WHERE market='{0}' AND time < {1} AND time > {1} - {2} AND period='{3}'""".format(self.market,dateOffset,timeframe,size)).get_points()
+            points = self.influxdb.raw_query("""select base_volume, volume, open, high, low, close FROM "market_ohlc" WHERE market='{0}' AND exchange='{4}' AND time < {1} AND time > {1} - {2} AND period='{3}'""".format(self.market,dateOffset,timeframe,size,self.exchange)).get_points()
 
 
         cs = self.clear_candlesticks()

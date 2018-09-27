@@ -23,6 +23,7 @@ class Bot(object):
         # self.tradelimit = config.get("tradelimit",0)
 
         self.market  = config.get("market",None)
+        self.exchange = config.get("exchange","bittrex")
         self.candlesize = config.get("candlesize","5m")
         self.timeframe  = config.get("timeframe","3d")
         self.basesize  = config.get("basesize","1m")
@@ -48,7 +49,7 @@ class Bot(object):
         self.startDate = None
 
         #dataprovider for candlestick data
-        self.trader = Trader(market=self.market)
+        self.trader = Trader(market=self.market,exchange=self.exchange)
 
         #manage indicators
         self.analyzer = None
@@ -190,9 +191,11 @@ class Bot(object):
 
     def refresh(self, scrape=False):
 
+        print("market={},exchange={}".format(self.market, self.exchange))
+        scraper = Scraper({'market':self.market,'exchange':self.exchange})
+
         self.candle_remaining = self.trader.getCandleRemaining()
         if self.candle_remaining is None:
-            #print('scraping')
             csdata = None
             if scrape:
                 try:
@@ -200,7 +203,9 @@ class Bot(object):
                         cs = self.candlesize
                     else:
                         cs = "1m"
-                    csdata = Scraper({'market':self.market}).cc_scrapeCandle(cs)
+
+                    # print('scraping:{}'.format(cs))
+                    csdata = scraper.cc_scrapeCandle(cs)
                     self.scrapeDate = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')
                     self.rticks += 1
                 except Exception as ex:
@@ -211,8 +216,16 @@ class Bot(object):
 
             self.loadCandlesticks(csdata)
 
+        try:
+            if self.market == "bittrex":
+                self.market_summary = Bittrex().public_get_market_summary(self.market).data["result"][0]
+            else:
+                last = scraper.cc_lastprice()
+                self.market_summary = {"Last": last,"Ask":0,"Bid":0}
+        except Exception as ex:
+            self.market_summary = {"Last": self.csdata["closed"][-1],"Ask":0,"Bid":0}
 
-        self.market_summary = Bittrex().public_get_market_summary(self.market).data["result"][0]
+
         self.last = self.market_summary['Last']
         self.csdata['closed'][-1] = self.last
 
