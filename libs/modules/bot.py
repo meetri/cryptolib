@@ -188,11 +188,10 @@ class Bot(object):
     def process(self, options = {}):
         return None
 
-
     def refresh(self, scrape=False):
 
-        print("market={},exchange={}".format(self.market, self.exchange))
-        scraper = Scraper({'market':self.market,'exchange':self.exchange})
+        # print("market={},exchange={}".format(self.market, self.exchange))
+        scraper = Scraper({'market': self.market, 'exchange': self.exchange})
 
         self.candle_remaining = self.trader.getCandleRemaining()
         if self.candle_remaining is None:
@@ -217,7 +216,7 @@ class Bot(object):
             self.loadCandlesticks(csdata)
 
         try:
-            if self.market == "bittrex":
+            if self.exchange == "bittrex":
                 self.market_summary = Bittrex().public_get_market_summary(self.market).data["result"][0]
             else:
                 last = scraper.cc_lastprice()

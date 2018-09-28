@@ -5,6 +5,7 @@ sys.path.append( os.getenv("CRYPTO_LIB","/projects/apps/shared/crypto") )
 import cryptolib
 from bittrex import Bittrex
 from mongowrapper import MongoWrapper
+from bson.objectid import ObjectId
 
 class CoinWatch(object):
 
@@ -20,23 +21,45 @@ class CoinWatch(object):
         #res = self.mongo.crypto.create_collection("watch")
         #res = self.mongo.crypto.watch.create_index([("name",pymongo.ASCENDING)],unique=True)
 
-    def updateWatch(self, market, exchange="bittrex"):
-        if market is not None:
-            doc = {"name": market, "exchange": exchange}
-            return self.mongo.crypto.watchlist.replace_one({'name':market},doc,upsert=True)
+
+    def updateWatch(self, watch ):
+        if "_id" in watch:
+            searchDoc = {"_id": ObjectId(watch["_id"])}
+            del watch["_id"]
+        else:
+            searchDoc = {"name": watch.get("market"), "exchange": watch.get("exchange")}
+        return self.mongo.crypto.watchlist.replace_one(searchDoc, watch , upsert=True)
+
 
     def update(self, watch):
         if "name" in watch:
             return self.mongo.crypto.watchlist.replace_one({'name':watch['name']},watch,upsert=True)
 
-    def removeWatch(self, market):
+    def removeWatch(self, market,exchange):
         if market is not None:
-            return self.mongo.crypto.watchlist.delete_one({'name':market})
+            return self.mongo.crypto.watchlist.delete_one({'name':market, 'exchange': exchange})
 
 
-    def loadWatchList(self):
-        res = self.mongo.crypto.watchlist.find({})
-        return res
+    def loadWatchList(self,search = {}):
+        res = self.mongo.crypto.watchlist.find(search)
+        allrows = list(res)
+        watchlist = []
+        headers = []
+        for row in allrows:
+            for key in row:
+                if key not in headers:
+                    headers.append(key)
+
+        for row in allrows:
+            r = {}
+            for head in headers:
+                if head in row:
+                    r[head] = row[head]
+                else:
+                    r[head] = None
+            watchlist.append(r)
+
+        return watchlist
 
 
     def refresh(self):
@@ -45,11 +68,19 @@ class CoinWatch(object):
         self.pendingorders = self.bittrex.market_get_open_orders().data["result"]
 
     def tableize(self, rows):
+
+        hid = 0
+        hl = 0
+        for idx, row in enumerate(rows):
+            if len(row) > hl:
+                hl = len(row)
+                hid = idx
+
         mincol = []
         if len(rows) == 0:
             return
 
-        for head in rows[0]:
+        for head in rows[hid]:
             mincol.append(len(head))
 
         for row in rows:
@@ -58,7 +89,7 @@ class CoinWatch(object):
                 l = mincol[idx]
                 mincol[idx] = max(len(col),l)
 
-        for idx,head in enumerate(rows[0]):
+        for idx,head in enumerate(rows[hid]):
             print("{}".format(head.ljust(mincol[idx]+2)),end="")
         print("")
 
@@ -117,6 +148,7 @@ class CoinWatch(object):
             markets[market]['ask'] = tick['Ask']
             markets[market]['dif'] = self.getPricePercentDif( tick["Last"], markets[market]['price'])
             markets[market]['total'] = markets[market]['qty'] * tick["Last"]
+            markets[market]['exchange'] = "bittrex"
             # markets[market][''] = markets[market]['qty'] * markets[market]['price']
 
         return markets
