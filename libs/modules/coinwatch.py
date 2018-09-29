@@ -106,50 +106,53 @@ class CoinWatch(object):
     def order_summary(self, currency):
         orders = []
         for idx,order in enumerate(reversed(self.history)):
-            if order["Exchange"].endswith("-{}".format(currency)):
-                orders.append(order)
+            if not order["ImmediateOrCancel"]:
+                if order["Exchange"].endswith("-{}".format(currency)):
+                    orders.append(order)
 
         qty = 0
-        olist  = []
+        olist = []
         for order in orders:
+            q = order["Quantity"] - order["QuantityRemaining"]
             if order["OrderType"] == "LIMIT_BUY":
-                olist.append({'market':order["Exchange"],'qty':order["Quantity"],"price":order["PricePerUnit"]})
+                olist.append({'market': order["Exchange"], 'qty': q, "price": order["PricePerUnit"]})
+                qty += q
             elif order["OrderType"] == "LIMIT_SELL":
-                qty = order["Quantity"]
+                qty -= q
                 for buy in olist:
-                    rem = buy['qty']-qty
-                    if rem <= 0:
-                        olist.remove(buy)
+                    if buy['qty'] > q:
+                        buy['qty'] -= q
+                        q = 0
                     else:
-                        buy['qty'] -= qty
+                        q = q - buy['qty']
+                        buy['qty'] = 0
 
         markets = {}
 
         for order in olist:
-            market = order["market"]
-            if market not in markets:
-                markets[market] = self.buildWatcher(order={
-                    "market": market,
-                    "price": order["price"],
-                    "qty": order["qty"],
-                    "orders": 1
-                    })
-            else:
-                markets[market]["price"] += order["price"]
-                markets[market]["qty"] += order["qty"]
-                markets[market]["orders"] += 1
-
+            if order['qty'] > 0:
+                market = order["market"]
+                if market not in markets:
+                    markets[market] = self.buildWatcher(order={
+                        "market": market,
+                        "price": order["price"],
+                        "qty": order["qty"],
+                        "orders": 1
+                        })
+                else:
+                    markets[market]["price"] += order["price"]
+                    markets[market]["qty"] += order["qty"]
+                    markets[market]["orders"] += 1
 
         for market in markets:
             tick = self.bittrex.public_get_ticker(market).data["result"]
             markets[market]['price'] /= markets[market]['orders']
-            markets[market]['last'] = tick['Last']
-            markets[market]['bid'] = tick['Bid']
-            markets[market]['ask'] = tick['Ask']
-            markets[market]['dif'] = self.getPricePercentDif( tick["Last"], markets[market]['price'])
+            markets[market]['last'] = "{:.08f}".format(tick['Last'])
+            markets[market]['bid'] = "{:.08f}".format(tick['Bid'])
+            markets[market]['ask'] = "{:.08f}".format(tick['Ask'])
+            markets[market]['dif'] = "{:.02f}".format(self.getPricePercentDif( tick["Last"], markets[market]['price']))
             markets[market]['total'] = markets[market]['qty'] * tick["Last"]
             markets[market]['exchange'] = "bittrex"
-            # markets[market][''] = markets[market]['qty'] * markets[market]['price']
 
         return markets
 
