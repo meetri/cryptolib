@@ -23,6 +23,7 @@ class BittrexExchange(object):
             sellOrder["id"] = r["result"]["uuid"]
         else:
             sellOrder["status"] = "error"
+            print(r)
         return sellOrder
 
 
