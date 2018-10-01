@@ -61,13 +61,47 @@ class CoinWatch(object):
 
         return watchlist
 
-
     def refresh(self):
         self.history  = self.bittrex.account_get_orderhistory().data["result"]
         self.bal = self.bittrex.account_get_balances().data["result"]
         self.pendingorders = self.bittrex.market_get_open_orders().data["result"]
 
-    def tableize(self, rows):
+    def tableize(self, rows, headers = None, margin = 2):
+
+        if len(rows) == 0:
+            return
+
+        headers = []
+        mincol = {}
+        for row in rows:
+            for c in row:
+                col = str(c)
+                if col not in headers:
+                    headers.append(col)
+                    mincol[col] = len(col)
+
+        for row in rows:
+            for head in headers:
+                if head in row:
+                    hl = len(str(row[head]))
+                    if hl > mincol[head]:
+                        mincol[head] = hl
+
+        for head in headers:
+            print("{}".format(head.ljust(mincol[head]+margin)), end="")
+        print("")
+
+        for row in rows:
+            for head in headers:
+                if head in row and row[head] is not None:
+                    col = str(row[head])
+                else:
+                    col = ""
+
+                print("{}".format(col.ljust(mincol[head]+margin)), end="")
+            print("")
+
+    def xtableize(self, rows):
 
         hid = 0
         hl = 0
@@ -136,11 +170,13 @@ class CoinWatch(object):
                     markets[market] = self.buildWatcher(order={
                         "market": market,
                         "price": order["price"],
+                        "total": order["price"] * order["qty"],
                         "qty": order["qty"],
                         "orders": 1
                         })
                 else:
                     markets[market]["price"] += order["price"]
+                    markets[market]["total"] += order["price"] * order["qty"]
                     markets[market]["qty"] += order["qty"]
                     markets[market]["orders"] += 1
 
@@ -150,7 +186,9 @@ class CoinWatch(object):
             markets[market]['last'] = "{:.08f}".format(tick['Last'])
             markets[market]['bid'] = "{:.08f}".format(tick['Bid'])
             markets[market]['ask'] = "{:.08f}".format(tick['Ask'])
-            markets[market]['dif'] = "{:.02f}".format(self.getPricePercentDif( tick["Last"], markets[market]['price']))
+            avgPrice = markets[market]["total"] / markets[market]["qty"]
+            # markets[market]['avg'] = avgPrice
+            markets[market]['dif'] = "{:.02f}".format(self.getPricePercentDif( tick["Last"], avgPrice))
             markets[market]['total'] = markets[market]['qty'] * tick["Last"]
             markets[market]['exchange'] = "bittrex"
 
