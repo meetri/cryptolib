@@ -1,8 +1,3 @@
-import os,sys,json,time
-curdir = os.path.dirname(os.path.realpath(__file__))
-sys.path.append( os.getenv("CRYPTO_LIB","/projects/apps/shared/crypto") )
-
-import cryptolib
 from bittrex import Bittrex
 from mongowrapper import MongoWrapper
 from bson.objectid import ObjectId
@@ -27,7 +22,7 @@ class CoinWatch(object):
             searchDoc = {"_id": ObjectId(watch["_id"])}
             del watch["_id"]
         else:
-            searchDoc = {"name": watch.get("market"), "exchange": watch.get("exchange")}
+            searchDoc = {"name": watch.get("name"), "exchange": watch.get("exchange")}
         return self.mongo.crypto.watchlist.replace_one(searchDoc, watch , upsert=True)
 
 
@@ -133,16 +128,29 @@ class CoinWatch(object):
                 print("{}".format(col.ljust(mincol[idx]+2)),end="")
             print("")
 
-
     def getPricePercentDif(self, price1, price2):
+        price1 = float(price1)
+        price2 = float(price2)
         return ((price1 - price2) * 100) / price1
 
-    def order_summary(self, currency):
+    def getPriceFromPercent(self, price, percent ):
+        return (price * percent) + price
+
+    def order_summary(self, currency, details=False):
         orders = []
-        for idx,order in enumerate(reversed(self.history)):
-            if not order["ImmediateOrCancel"]:
-                if order["Exchange"].endswith("-{}".format(currency)):
-                    orders.append(order)
+        for idx, order in enumerate(reversed(self.history)):
+            if order["Exchange"].endswith("-{}".format(currency)):
+                del order['OrderUuid']
+                del order['ConditionTarget']
+                del order['Commission']
+                del order['IsConditional']
+                del order['TimeStamp']
+                del order['ImmediateOrCancel']
+                del order['Condition']
+                orders.append(order)
+
+        if details:
+            return orders
 
         qty = 0
         olist = []
@@ -160,6 +168,7 @@ class CoinWatch(object):
                     else:
                         q = q - buy['qty']
                         buy['qty'] = 0
+
 
         markets = {}
 
@@ -182,7 +191,9 @@ class CoinWatch(object):
 
         for market in markets:
             tick = self.bittrex.public_get_ticker(market).data["result"]
-            markets[market]['price'] /= markets[market]['orders']
+            avgPrice = markets[market]["total"] / markets[market]["qty"]
+            markets[market]['price'] = avgPrice
+            # markets[market]['price'] /= markets[market]['orders']
             markets[market]['last'] = "{:.08f}".format(tick['Last'])
             markets[market]['bid'] = "{:.08f}".format(tick['Bid'])
             markets[market]['ask'] = "{:.08f}".format(tick['Ask'])
@@ -233,9 +244,7 @@ class CoinWatch(object):
 
         return out
 
-
-
-    def parse(self):
+    def parse(self, market=None):
         if self.bal is None:
             self.refresh()
 
@@ -243,10 +252,15 @@ class CoinWatch(object):
         rows = []
         for account in self.bal:
             if account['Balance'] > 0:
-                if account["Currency"] not in ["USDT","BTC"]:
-                    summary = self.order_summary(account["Currency"])
+                if account["Currency"] not in ["USDT", "BTC"] and \
+                   (market is None or market in account["Currency"].lower()):
+                    summary = self.order_summary(account["Currency"],
+                                                 market is not None)
                     rows.append(summary)
                     acc.append(account)
+
+        if market is not None:
+            return rows[0]
 
         out = []
         for row in rows:

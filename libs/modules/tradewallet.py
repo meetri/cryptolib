@@ -332,6 +332,8 @@ class TradeWallet(object):
 
     # TODO:
     def getPriceFromPercent(self, price, percent ):
+        print(price)
+        print(percent)
         return (price * percent) + price
 
 
