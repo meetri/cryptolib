@@ -140,13 +140,20 @@ class CoinWatch(object):
         orders = []
         for idx, order in enumerate(reversed(self.history)):
             if order["Exchange"].endswith("-{}".format(currency)):
-                del order['OrderUuid']
-                del order['ConditionTarget']
-                del order['Commission']
-                del order['IsConditional']
-                del order['TimeStamp']
-                del order['ImmediateOrCancel']
-                del order['Condition']
+                if "OrderUuid" in order:
+                    del order['OrderUuid']
+                if "ConditionTarget" in order:
+                    del order['ConditionTarget']
+                if "Commission" in order:
+                    del order['Commission']
+                if "IsConditional" in order:
+                    del order['IsConditional']
+                if "TimeStamp" in order:
+                    del order['TimeStamp']
+                if "ImmediateOrCancel" in order:
+                    del order['ImmediateOrCancel']
+                if "Condition" in order:
+                    del order['Condition']
                 orders.append(order)
 
         if details:
